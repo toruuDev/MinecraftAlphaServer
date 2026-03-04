@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+
+group = 'net.minecraft'
+version = '1.0-Final'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.lwjgl.lwjgl:lwjgl:2.9.3'
+    implementation 'org.lwjgl.lwjgl:lwjgl_util:2.9.3'
+    implementation 'net.java.jinput:jinput:2.0.5'
+
+    implementation fileTree(dir: 'libs', include: ['**/*.jar'])
+
+}
+
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'net.minecraft.server.MinecraftServer'
+        )
+    }
+}
+
+tasks.withType(JavaExec).configureEach {
+    jvmArgs "-Djava.library.path=${projectDir}/natives"
+}
+
+test {
+    useJUnitPlatform()
+}

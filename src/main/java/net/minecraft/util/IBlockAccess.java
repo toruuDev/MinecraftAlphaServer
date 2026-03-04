@@ -1,0 +1,13 @@
+package net.minecraft.util;
+
+import net.minecraft.material.Material;
+
+public interface IBlockAccess {
+	int getBlockId(int var1, int var2, int var3);
+
+	int getBlockMetadata(int var1, int var2, int var3);
+
+	Material getBlockMaterial(int var1, int var2, int var3);
+
+	boolean isBlockNormalCube(int var1, int var2, int var3);
+}
