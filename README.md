@@ -7,3 +7,5 @@ gradlew build
 
 # How to Use 
 > java -Xmx1024M -Xms1024M -jar MinecraftAlphaServer-1.0-Final.jar nogui (or for gui remove nogui) 
+
+![picture1](images/image.png)
