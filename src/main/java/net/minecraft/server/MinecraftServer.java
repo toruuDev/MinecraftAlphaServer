@@ -11,6 +11,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import net.minecraft.command.CommandManager;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.ConsoleLogManager;
 import net.minecraft.player.EntityPlayerMP;
@@ -37,15 +39,17 @@ public class MinecraftServer implements ICommandListener, Runnable {
 	public PropertyManager propertyManagerObj;
 	public WorldServer worldMngr;
 	public ServerConfigurationManager configManager;
-	private boolean serverRunning = true;
+	public boolean serverRunning = true;
 	public boolean serverStopped = false;
 	int deathTime = 0;
 	public String currentTask;
 	public int percentDone;
 	private List playersOnline = new ArrayList();
-	private List commands = Collections.synchronizedList(new ArrayList());
+	public List commands = Collections.synchronizedList(new ArrayList());
 	public EntityTracker entityTracker;
 	public boolean onlineMode;
+
+	public CommandManager commandManager;
 
 	public MinecraftServer() {
 		new ThreadSleepForeverServer(this);
@@ -53,6 +57,7 @@ public class MinecraftServer implements ICommandListener, Runnable {
 
 	private boolean startServer() throws IOException {
 		ThreadCommandReader var1 = new ThreadCommandReader(this);
+
 		var1.setDaemon(true);
 		var1.start();
 		ConsoleLogManager.init();
@@ -70,6 +75,9 @@ public class MinecraftServer implements ICommandListener, Runnable {
 		if(var2.length() > 0) {
 			var3 = InetAddress.getByName(var2);
 		}
+
+		commandManager = new CommandManager();
+		logger.info("Loading Commands");
 
 		int var4 = this.propertyManagerObj.getIntProperty("server-port", 25565);
 		logger.info("Starting Minecraft server on " + (var2.length() == 0 ? "*" : var2) + ":" + var4);
@@ -268,197 +276,24 @@ public class MinecraftServer implements ICommandListener, Runnable {
 	}
 
 	public void commandLineParser() {
-		while(this.commands.size() > 0) {
-			ServerCommand var1 = (ServerCommand)this.commands.remove(0);
-			String var2 = var1.command;
-			ICommandListener var3 = var1.commandListener;
-			String var4 = var3.getUsername();
-			if(!var2.toLowerCase().startsWith("help") && !var2.toLowerCase().startsWith("?")) {
-				if(var2.toLowerCase().startsWith("list")) {
-					var3.addHelpCommandMessage("Connected players: " + this.configManager.getPlayerList());
-				}
-				else if (var2.toLowerCase().startsWith("info")) {
-					var3.addHelpCommandMessage("Server Information:");
-					var3.addHelpCommandMessage("Players online: " + this.configManager.playerEntities.size());
-					var3.addHelpCommandMessage("Level saving: " + (this.worldMngr.levelSaving ? "Disabled" : "Enabled"));
-					var3.addHelpCommandMessage("Server running: " + this.serverRunning);
-					var3.addHelpCommandMessage("https://github.com/toruuDev/MinecraftAlphaServer");
-				}
-				else if(var2.toLowerCase().startsWith("stop")) {
-					this.print(var4, "Stopping the server..");
-					this.serverRunning = false;
-				} else if(var2.toLowerCase().startsWith("save-all")) {
-					this.print(var4, "Forcing save..");
-					this.worldMngr.saveWorld(true, (IProgressUpdate)null);
-					this.print(var4, "Save complete.");
-				} else if(var2.toLowerCase().startsWith("save-off")) {
-					this.print(var4, "Disabling level saving..");
-					this.worldMngr.levelSaving = true;
-				} else if(var2.toLowerCase().startsWith("save-on")) {
-					this.print(var4, "Enabling level saving..");
-					this.worldMngr.levelSaving = false;
-				} else {
-					String var11;
-					if(var2.toLowerCase().startsWith("op ")) {
-						var11 = var2.substring(var2.indexOf(" ")).trim();
-						this.configManager.opPlayer(var11);
-						this.print(var4, "Opping " + var11);
-						this.configManager.sendChatMessageToPlayer(var11, "\u00a7eYou are now op!");
-					} else if(var2.toLowerCase().startsWith("deop ")) {
-						var11 = var2.substring(var2.indexOf(" ")).trim();
-						this.configManager.deopPlayer(var11);
-						this.configManager.sendChatMessageToPlayer(var11, "\u00a7eYou are no longer op!");
-						this.print(var4, "De-opping " + var11);
-					} else if(var2.toLowerCase().startsWith("ban-ip ")) {
-						var11 = var2.substring(var2.indexOf(" ")).trim();
-						this.configManager.banIP(var11);
-						this.print(var4, "Banning ip " + var11);
-					} else if(var2.toLowerCase().startsWith("pardon-ip ")) {
-						var11 = var2.substring(var2.indexOf(" ")).trim();
-						this.configManager.pardonIP(var11);
-						this.print(var4, "Pardoning ip " + var11);
-					} else {
-						EntityPlayerMP var12;
-						if(var2.toLowerCase().startsWith("ban ")) {
-							var11 = var2.substring(var2.indexOf(" ")).trim();
-							this.configManager.banPlayer(var11);
-							this.print(var4, "Banning " + var11);
-							var12 = this.configManager.getPlayerEntity(var11);
-							if(var12 != null) {
-								var12.playerNetServerHandler.kickPlayer("Banned by admin");
-							}
-						} else if(var2.toLowerCase().startsWith("pardon ")) {
-							var11 = var2.substring(var2.indexOf(" ")).trim();
-							this.configManager.pardonPlayer(var11);
-							this.print(var4, "Pardoning " + var11);
-						} else if(var2.toLowerCase().startsWith("kick ")) {
-							var11 = var2.substring(var2.indexOf(" ")).trim();
-							var12 = null;
+		// rewritten and implemented by toru
+		while (this.commands.size() > 0) {
+			ServerCommand serverCommand = (ServerCommand) this.commands.remove(0);
 
-							for(int var13 = 0; var13 < this.configManager.playerEntities.size(); ++var13) {
-								EntityPlayerMP var14 = (EntityPlayerMP)this.configManager.playerEntities.get(var13);
-								if(var14.username.equalsIgnoreCase(var11)) {
-									var12 = var14;
-								}
-							}
-
-							if(var12 != null) {
-								var12.playerNetServerHandler.kickPlayer("Kicked by admin");
-								this.print(var4, "Kicking " + var12.username);
-							} else {
-								var3.addHelpCommandMessage("Can\'t find user " + var11 + ". No kick.");
-							}
-						} else {
-							String[] var5;
-							EntityPlayerMP var7;
-							if(var2.toLowerCase().startsWith("tp ")) {
-								var5 = var2.split(" ");
-								if(var5.length == 3) {
-									var12 = this.configManager.getPlayerEntity(var5[1]);
-									var7 = this.configManager.getPlayerEntity(var5[2]);
-									if(var12 == null) {
-										var3.addHelpCommandMessage("Can\'t find user " + var5[1] + ". No tp.");
-									} else if(var7 == null) {
-										var3.addHelpCommandMessage("Can\'t find user " + var5[2] + ". No tp.");
-									} else {
-										var12.playerNetServerHandler.teleportTo(var7.posX, var7.posY, var7.posZ, var7.rotationYaw, var7.rotationPitch);
-										this.print(var4, "Teleporting " + var5[1] + " to " + var5[2] + ".");
-									}
-								} else {
-									var3.addHelpCommandMessage("Syntax error, please provice a source and a target.");
-								}
-							} else if(var2.toLowerCase().startsWith("give ")) {
-								var5 = var2.split(" ");
-								if(var5.length != 3 && var5.length != 4) {
-									return;
-								}
-
-								String var6 = var5[1];
-								var7 = this.configManager.getPlayerEntity(var6);
-								if(var7 != null) {
-									try {
-										int var8 = Integer.parseInt(var5[2]);
-										if(Item.itemsList[var8] != null) {
-											this.print(var4, "Giving " + var7.username + " some " + var8);
-											int var9 = 1;
-											if(var5.length > 3) {
-												var9 = this.parseInt(var5[3], 1);
-											}
-
-											if(var9 < 1) {
-												var9 = 1;
-											}
-
-											if(var9 > 64) {
-												var9 = 64;
-											}
-
-											var7.dropPlayerItem(new ItemStack(var8, var9));
-										} else {
-											var3.addHelpCommandMessage("There\'s no item with id " + var8);
-										}
-									} catch (NumberFormatException var10) {
-										var3.addHelpCommandMessage("There\'s no item with id " + var5[2]);
-									}
-								} else {
-									var3.addHelpCommandMessage("Can\'t find user " + var6);
-								}
-							} else if(var2.toLowerCase().startsWith("say ")) {
-								var2 = var2.substring(var2.indexOf(" ")).trim();
-								logger.info("[" + var4 + "] " + var2);
-								this.configManager.sendPacketToAllPlayers(new Packet3Chat("\u00a7d[Server] " + var2));
-							} else if(var2.toLowerCase().startsWith("tell ")) {
-								var5 = var2.split(" ");
-								if(var5.length >= 3) {
-									var2 = var2.substring(var2.indexOf(" ")).trim();
-									var2 = var2.substring(var2.indexOf(" ")).trim();
-									logger.info("[" + var4 + "->" + var5[1] + "] " + var2);
-									this.configManager.sendPacketToAllPlayers(new Packet3Chat("\u00a7d[Server] " + var2));
-									var2 = "\u00a77" + var4 + " whispers " + var2;
-									logger.info(var2);
-									if(!this.configManager.sendPacketToPlayer(var5[1], new Packet3Chat(var2))) {
-										var3.addHelpCommandMessage("There\'s no player by that name online.");
-									}
-								}
-							} else {
-								logger.info("Unknown console command. Type \"help\" for help.");
-							}
-						}
-					}
-				}
-			} else {
-				var3.addHelpCommandMessage("To run the server without a gui, start it like this:");
-				var3.addHelpCommandMessage("   java -Xmx1024M -Xms1024M -jar minecraft_server.jar nogui");
-				var3.addHelpCommandMessage("Console commands:");
-				var3.addHelpCommandMessage("   help  or  ?               shows this message");
-				var3.addHelpCommandMessage("   kick <player>             removes a player from the server");
-				var3.addHelpCommandMessage("   ban <player>              bans a player from the server");
-				var3.addHelpCommandMessage("   pardon <player>           pardons a banned player so that they can connect again");
-				var3.addHelpCommandMessage("   ban-ip <ip>               bans an IP address from the server");
-				var3.addHelpCommandMessage("   pardon-ip <ip>            pardons a banned IP address so that they can connect again");
-				var3.addHelpCommandMessage("   op <player>               turns a player into an op");
-				var3.addHelpCommandMessage("   deop <player>             removes op status from a player");
-				var3.addHelpCommandMessage("   tp <player1> <player2>    moves one player to the same location as another player");
-				var3.addHelpCommandMessage("   give <player> <id> [num]  gives a player a resource");
-				var3.addHelpCommandMessage("   tell <player> <message>   sends a private message to a player");
-				var3.addHelpCommandMessage("   stop                      gracefully stops the server");
-				var3.addHelpCommandMessage("   save-all                  forces a server-wide level save");
-				var3.addHelpCommandMessage("   save-off                  disables terrain saving (useful for backup scripts)");
-				var3.addHelpCommandMessage("   save-on                   re-enables terrain saving");
-				var3.addHelpCommandMessage("   list                      lists all currently connected players");
-				var3.addHelpCommandMessage("   say <message>             broadcasts a message to all players");
-			}
+			commandManager.executeCommand(
+					this, serverCommand.commandListener,
+					serverCommand.command
+			);
 		}
-
 	}
 
-	private void print(String var1, String var2) {
+	public void print(String var1, String var2) {
 		String var3 = var1 + ": " + var2;
 		this.configManager.sendChatMessageToAllOps("\u00a77(" + var3 + ")");
 		logger.info(var3);
 	}
 
-	private int parseInt(String var1, int var2) {
+	public int parseInt(String var1, int var2) {
 		try {
 			return Integer.parseInt(var1);
 		} catch (NumberFormatException var4) {
